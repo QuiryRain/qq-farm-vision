@@ -27,7 +27,8 @@ class BotVision(Base):
         """无效点击"""
         time.sleep(1)
         cx, cy = CONFIG['commonClick']
-        self.clicker.click(self.hwnd, cx, cy)
+        offset = random.randint(-10, 10)
+        self.clicker.click(self.hwnd, cx + offset, cy)
 
     def get_share_reward(self):
         """获取分享每日奖励"""
@@ -262,6 +263,8 @@ class BotVision(Base):
             if locations:
                 self.logger.info(f"开始{zhCn_name}")
                 self.clicker.click(self.hwnd, *locations[0]['relative_position'])
+            if action == 'Harvest':
+                self.common_click()
 
     def loop(self):
         land_loop = {
@@ -300,7 +303,6 @@ def run():
     bot_vision.get_daily_reward()
     time.sleep(1)
     bot_vision.loop()
-    # bot_vision.get_new_seed()
 
 
 if __name__ == '__main__':
