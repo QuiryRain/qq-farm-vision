@@ -1,0 +1,22 @@
+[project]
+name = "qqfarmvision"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "keyboard>=0.13.5",
+    "loguru>=0.7.3",
+    "pillow>=12.2.0",
+    "pyautogui>=0.9.54",
+    "pygetwindow>=0.0.9",
+    "pysocks>=1.7.1",
+    "pywin32>=311",
+    "requests>=2.33.1",
+    "setuptools>=82.0.1",
+    "ultralytics>=8.4.33",
+    "wheel>=0.46.3",
+]
+
+[tool.uv]
+required-environments = "sys_platform == 'win32'"
