@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf8 -*-
 import time
-
+import random
 from base import Base
 from action import AutoClick
 from config import CONFIG
 from detector import RedDotDetector
 from vision import YoloVision
 from mapping import Target
+from utils import remove_duplicate_matches
 
 
 class BotVision(Base):
@@ -212,10 +213,28 @@ class BotVision(Base):
         self.clicker.click(self.hwnd, *CONFIG['close_store'])
         self.logger.info(f"获取新种子完成，坐标: {new_seed['screen_position']}")
 
+    def get_seed_locations(self, image):
+        """获取已有种子坐标"""
+        seed1_locations = self.reddot_detector.detect_template_in_image(
+            template_img='./static/seed1.png',
+            target_img=image
+        )
+        seed2_locations = self.reddot_detector.detect_template_in_image(
+            template_img='./static/seed1.png',
+            target_img=image
+        )
+        seed3_locations = self.reddot_detector.detect_template_in_image(
+            template_img='./static/seed1.png',
+            target_img=image
+        )
+        seed_locations = remove_duplicate_matches(
+            seed1_locations + seed2_locations + seed3_locations)
+        return seed_locations
+
     def start_sowing(self):
         is_sow_seed = False
         self.logger.info('开始土地巡检。。。')
-        for x, y, x1, y1, dtype, x2, y2, x3, y3 in CONFIG['land']:
+        for x, y, *_ in CONFIG['land']:
             try:
                 self.clicker.click(self.hwnd, x, y)
                 time.sleep(1)
@@ -226,9 +245,9 @@ class BotVision(Base):
                 )
                 if switch_locations:
                     continue
-                seed_targets = self.yolo.detect_specific_target(Target.SEED.value, image)
                 time.sleep(1)
-                if not seed_targets and not is_sow_seed:
+                seed_locations = self.get_seed_locations(image)
+                if not seed_locations:
                     if not is_sow_seed:
                         self.logger.info("没有种子，开始获取新种子")
                         # 购买种子
@@ -239,11 +258,12 @@ class BotVision(Base):
                     time.sleep(1)
                     # 重新判定
                     image = self.capture_window_printwindow()
-                    targets = self.yolo.detect_specific_target(Target.SEED.value, image)
-                    seed_targets = [t for t in targets if t['class_name'] == Target.SEED.value]
-                if seed_targets:
+                    seed_locations = self.get_seed_locations(image)
+                if seed_locations:
                     self.logger.info(f"开始播种: ({x, y})")
-                    self.clicker.click(self.hwnd, *seed_targets[0]['relative_position'])
+                    x1 = seed_locations[0]['relative_position'][0] + 15
+                    y1 = seed_locations[0]['relative_position'][1] + 15
+                    self.clicker.click(self.hwnd, x1, y1)
             except Exception as e:
                 self.logger.error(f'播种失败: ({x, y}) - {e}')
         self.common_click()
@@ -263,8 +283,11 @@ class BotVision(Base):
             if locations:
                 self.logger.info(f"开始{zhCn_name}")
                 self.clicker.click(self.hwnd, *locations[0]['relative_position'])
-            if action == 'Harvest':
+            time.sleep(0.5)
+            if action == 'Harvest' and locations:
                 self.common_click()
+                # 重新巡检
+                self.start_sowing()
 
     def loop(self):
         land_loop = {
