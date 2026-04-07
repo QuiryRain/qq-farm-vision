@@ -20,6 +20,9 @@ CONFIG = {
     'storeSeedlocked': './static/seedLock.png', # 商店 - 种子 - 未解锁 样式1
     'storeSeedlocked2': './static/seedLock2.png', # 商店 - 种子 - 未解锁 样式2
     'storeSeedUnlocked': './static/seedUnlock.png', # 商店 - 种子 - 已解锁
+    'landUpdateSwitch': './static/landUpdateSwtich.png',    # 土地升级切换
+    'landUpgrade': './static/landUpgrade.png',      # 土地升级
+    'landUpgradeButton': './static/landUpgradeButton.png', # 土地升级按钮
 
     'mainscene': {
         'warehuse':{

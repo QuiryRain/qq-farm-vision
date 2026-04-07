@@ -273,6 +273,40 @@ class BotVision(Base):
             seed1_locations + seed2_locations + seed3_locations)
         return seed_locations
 
+    def upgrade_land(self, image=None):
+        """土地升级"""
+        image = image or self.capture_window_printwindow()
+        updateSwitch_locations = self.reddot_detector.detect_template_in_image(
+            template_img=CONFIG['landUpdateSwitch'],
+            target_img=image
+        )
+        if updateSwitch_locations:
+            time.sleep(1)
+            self.clicker.click(self.hwnd, *updateSwitch_locations[0]['relative_position'])
+
+        time.sleep(0.5)
+        image = self.capture_window_printwindow()
+        upgrade_locations = self.reddot_detector.detect_template_in_image(
+            template_img=CONFIG['landUpgrade'],
+            target_img=image
+        )
+        if upgrade_locations:
+            time.sleep(1)
+            self.clicker.click(self.hwnd, *upgrade_locations[0]['relative_position'])
+
+        time.sleep(0.5)
+        image = self.capture_window_printwindow()
+        updateButton_locations = self.reddot_detector.detect_template_in_image(
+            template_img=CONFIG['landUpgradeButton'],
+            target_img=image
+        )
+        is_update = False
+        if updateButton_locations:
+            time.sleep(1)
+            self.clicker.click(self.hwnd, *updateButton_locations[0]['relative_position'])
+            is_update = True
+        return is_update
+
     def start_sowing(self):
         is_sow_seed = False
         self.logger.info('开始土地巡检。。。')
@@ -290,6 +324,10 @@ class BotVision(Base):
                     target_img=image
                 )
                 if switch_locations or eradicate_loctions:
+                    self.logger.info(f"开始检测土地是否可升级: ({x, y})")
+                    status = self.upgrade_land(image)
+                    if status:
+                        self.logger.info(f"土地已升级结果: ({x, y})")
                     continue
                 time.sleep(1)
                 seed_locations = self.get_seed_locations(image)
@@ -331,7 +369,6 @@ class BotVision(Base):
                 self.clicker.click(self.hwnd, *locations[0]['relative_position'])
             time.sleep(0.5)
             if action == 'Harvest' and locations:
-                print(locations)
                 self.common_click()
                 # 重新巡检
                 self.start_sowing()
@@ -373,6 +410,7 @@ def run():
     time.sleep(1)
     bot_vision.loop()
     # bot_vision.get_new_seed()
+    # bot_vision.upgrade_land()
 
 
 if __name__ == '__main__':
