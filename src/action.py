@@ -36,13 +36,13 @@ class AutoClick:
             lParam = win32api.MAKELONG(int(x), int(y))
 
             if button == 'left':
-                win32gui.SendMessage(hwnd, win32con.WM_LBUTTONDOWN, 0, lParam)
+                win32gui.PostMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, lParam)
                 time.sleep(0.05)
-                win32gui.SendMessage(hwnd, win32con.WM_LBUTTONUP, 0, lParam)
+                win32gui.PostMessage(hwnd, win32con.WM_LBUTTONUP, 0, lParam)
             elif button == 'right':
-                win32gui.SendMessage(hwnd, win32con.WM_RBUTTONDOWN, 0, lParam)
+                win32gui.PostMessage(hwnd, win32con.WM_RBUTTONDOWN, win32con.MK_RBUTTON, lParam)
                 time.sleep(0.05)
-                win32gui.SendMessage(hwnd, win32con.WM_RBUTTONUP, 0, lParam)
+                win32gui.PostMessage(hwnd, win32con.WM_RBUTTONUP, 0, lParam)
             else:
                 logger.info(f"不支持的按钮类型: {button}")
                 return False
@@ -76,7 +76,7 @@ class AutoClick:
 
         # 发送滚轮消息
         win32gui.PostMessage(hwnd, win32con.WM_MOUSEWHEEL, wParam, lParam)
-        logger.info(f"滚轮事件: delta={delta}, 位置=({x}, {y})")
+        # logger.info(f"滚轮事件: delta={delta}, 位置=({x}, {y})")
 
 
     @staticmethod

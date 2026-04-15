@@ -27,7 +27,7 @@ class Base(object):
             if not wins:
                 raise Exception(f"未找到窗口")
             win = wins[0]
-            win.activate()
+            # win.activate()
             win.moveTo(0, 0)
             win.resizeTo(500, 900)
             time.sleep(2)
@@ -200,7 +200,7 @@ class Base(object):
                 (bmpinfo['bmWidth'], bmpinfo['bmHeight']),
                 bmpstr, 'raw', 'BGRX', 0, 1
             )
-            im.save('captured_image.png')
+            # im.save('captured_image.png')
 
             # 清理资源
             win32gui.DeleteObject(saveBitMap.GetHandle())

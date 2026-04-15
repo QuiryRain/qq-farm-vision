@@ -2,15 +2,14 @@
 # -*- coding: utf8 -*-
 import time
 import random
-# import pyautogui
+import pyautogui
 import win32gui
+from threading import Thread
 
 from base import Base
 from action import AutoClick, click_with_sendinput
 from config import CONFIG
 from detector import RedDotDetector
-# from vision import YoloVision
-# from mapping import Target
 from utils import remove_duplicate_matches, analyze_match_positions
 
 
@@ -34,7 +33,7 @@ class BotVision(Base):
             cx, cy = CONFIG['commonClick']
         else:
             cx, cy = x, y
-        offset = random.randint(-10, 10)
+        offset = random.randint(-5, 10)
         self.clicker.click(self.hwnd, cx + offset, cy)
 
     def cancel_share(self):
@@ -44,19 +43,38 @@ class BotVision(Base):
             template_img=CONFIG['CancelShare'],
             target_img=image,
         )
+        offset = 0
+        if not cancel_locations:
+            self.logger.info("取消分享失败 类型一失败，采用类型二")
+            cancel_locations = self.reddot_detector.detect_template_in_image(
+                template_img=CONFIG['CancelShare2'],
+                target_img=image,
+            )
+            offset = 20
+        if not cancel_locations:
+            self.logger.info("取消分享失败 类型二失败，采用类型三")
+            cancel_locations = self.reddot_detector.detect_template_in_image(
+                template_img=CONFIG['CancelShare3'],
+                target_img=image,
+            )
+            offset = 40
         if cancel_locations:
             time.sleep(1)
             x, y = cancel_locations[0]['relative_position']
-            hwnd = win32gui.GetDesktopWindow()
-            click_with_sendinput(hwnd, x, y + 20)
+            self.logger.info(f"取消分享, {x, y}")
+            # hwnd = win32gui.GetDesktopWindow()
+            # click_with_sendinput(hwnd, x, y + offset)
+            pyautogui.click(x, y + offset)
             time.sleep(1)
+        else:
+            self.logger.info("取消分享失败 三种类型均失败")
         self.common_click()
 
     def get_share_reward(self):
         """获取分享每日奖励"""
         self.logger.info("获取分享奖励")
         # 界面坐标
-        x, y = CONFIG['mainscene']['share']['x'], CONFIG['mainscene']['share']['y']
+        x, y = CONFIG['mainscene']['share']
         self.clicker.click(self.hwnd, x, y)
         time.sleep(1)
         # 奖励坐标
@@ -80,7 +98,7 @@ class BotVision(Base):
         """获取商城每日奖励"""
         self.logger.info("获取商城每日奖励")
         # 界面坐标
-        x, y = CONFIG['mainscene']['shoppingMall']['x'], CONFIG['mainscene']['shoppingMall']['y']
+        x, y = CONFIG['mainscene']['shoppingMall']
         self.clicker.click(self.hwnd, x, y)
         time.sleep(1)
         # 奖励坐标
@@ -97,7 +115,7 @@ class BotVision(Base):
     def get_task_reward(self):
         """获取任务奖励"""
         self.logger.info("获取任务奖励")
-        x, y = CONFIG['mainscene']['task']['x'], CONFIG['mainscene']['task']['y']
+        x, y = CONFIG['mainscene']['task']
         self.clicker.click(self.hwnd, x, y)
 
         while True:
@@ -138,9 +156,24 @@ class BotVision(Base):
     def get_menu_reward(self):
         """获取菜单奖励"""
         self.logger.info("获取菜单奖励")
-        # x, y = CONFIG['mainscene']['menu']['x'], CONFIG['mainscene']['menu']['y']
-        # self.clicker.click(self.hwnd, x, y)
-        # time.sleep(1)
+        x, y = CONFIG['mainscene']['menu']
+        self.clicker.click(self.hwnd, x, y)
+        time.sleep(0.5)
+        self.clicker.click(self.hwnd, *CONFIG['mainscene']['menuEmail'])
+        time.sleep(0.5)
+        self.clicker.click(self.hwnd, *CONFIG['mainscene']['menuEmailReward'])
+        time.sleep(0.5)
+        locations = self.reddot_detector.detect_template_in_image(
+            template_img=CONFIG['blankClose'],
+            target_img=self.capture_window_printwindow(),
+        )
+        if locations:
+            self.clicker.click(self.hwnd, *locations[0]['relative_position'])
+            time.sleep(0.2)
+        self.clicker.click(self.hwnd, *CONFIG['mainscene']['menuEmailDeleteReward'])
+        time.sleep(0.5)
+        self.clicker.click(self.hwnd, *CONFIG['mainscene']['menuEmailDeleteRewardConfirm'])
+        time.sleep(0.5)
 
     def get_daily_reward(self):
         rois = {
@@ -161,11 +194,11 @@ class BotVision(Base):
             'full_image': '全图'
         }
 
-        img = self.capture_window_printwindow()
-        if img is None:
-            return []
+        # img = self.capture_window_printwindow()
+        # if img is None:
+        #     return []
 
-        result = self.reddot_detector.detect_red_dot(image=img, rois=rois)
+        result = self.reddot_detector.detect_red_dot(image=None, rois=rois)
 
         for roi_id, step in result.items():
             roi_coords = step['roi']
@@ -195,15 +228,18 @@ class BotVision(Base):
 
     def scroll_min_window(self):
         """将画面内容最小化，统一界面"""
-        self.clicker.scroll_window(self.hwnd, 100000)
+        # self.clicker.scroll_window(self.hwnd, 100000)
+        for i in range(30):
+            s = (i + 1) * -10
+            self.clicker.scroll_window(self.hwnd, s)
+            time.sleep(0.1)
 
     def get_new_seed(self):
         """获取新种子"""
         self.logger.info("获取新种子")
         self.clicker.click(
             self.hwnd,
-            CONFIG['mainscene']['store']['x'],
-            CONFIG['mainscene']['store']['y']
+            *CONFIG['mainscene']['store']
         )
         time.sleep(2)
         image = self.capture_window_printwindow()
@@ -275,16 +311,16 @@ class BotVision(Base):
 
     def upgrade_land(self, image=None):
         """土地升级"""
-        image = image or self.capture_window_printwindow()
-        updateSwitch_locations = self.reddot_detector.detect_template_in_image(
-            template_img=CONFIG['landUpdateSwitch'],
-            target_img=image
-        )
-        if updateSwitch_locations:
-            time.sleep(1)
-            self.clicker.click(self.hwnd, *updateSwitch_locations[0]['relative_position'])
+        # image = image or self.capture_window_printwindow()
+        # updateSwitch_locations = self.reddot_detector.detect_template_in_image(
+        #     template_img=CONFIG['landUpdateSwitch'],
+        #     target_img=image
+        # )
+        # if updateSwitch_locations:
+        #     time.sleep(1)
+        #     self.clicker.click(self.hwnd, *updateSwitch_locations[0]['relative_position'])
 
-        time.sleep(0.5)
+        # time.sleep(0.5)
         image = self.capture_window_printwindow()
         upgrade_locations = self.reddot_detector.detect_template_in_image(
             template_img=CONFIG['landUpgrade'],
@@ -292,7 +328,9 @@ class BotVision(Base):
         )
         if upgrade_locations:
             time.sleep(1)
-            self.clicker.click(self.hwnd, *upgrade_locations[0]['relative_position'])
+            x, y = upgrade_locations[0]['relative_position']
+            # print(x, y)
+            self.clicker.click(self.hwnd, x - 20, y + 20)
 
         time.sleep(0.5)
         image = self.capture_window_printwindow()
@@ -307,29 +345,43 @@ class BotVision(Base):
             is_update = True
         return is_update
 
+    def close_blank_window(self):
+        while True:
+            time.sleep(0.5)
+            image = self.capture_window_printwindow()
+            locations = self.reddot_detector.detect_template_in_image(
+                template_img=CONFIG['blankClose'],
+                target_img=image
+            )
+            if locations:
+                self.logger.info('存在： 点击空白处关闭')
+                self.clicker.click(self.hwnd, *locations[0]['relative_position'])
+            time.sleep(0.5)
+
     def start_sowing(self):
         is_sow_seed = False
         self.logger.info('开始土地巡检。。。')
         for x, y, *_ in CONFIG['land']:
             try:
                 self.clicker.click(self.hwnd, x, y)
-                time.sleep(1)
+                time.sleep(1.5)
                 image = self.capture_window_printwindow()
-                switch_locations = self.reddot_detector.detect_template_in_image(
-                    template_img=CONFIG['LandSwitch'],
-                    target_img=image
-                )
+                # switch_locations = self.reddot_detector.detect_template_in_image(
+                #     template_img=CONFIG['LandSwitch'],
+                #     target_img=image
+                # )
                 eradicate_loctions = self.reddot_detector.detect_template_in_image(
                     template_img=CONFIG['SeedEradicate'],
                     target_img=image
                 )
-                if switch_locations or eradicate_loctions:
-                    self.logger.info(f"开始检测土地是否可升级: ({x, y})")
+                # if switch_locations or eradicate_loctions:
+                if eradicate_loctions:
+                    # self.logger.info(f"开始检测土地是否可升级: ({x, y})")
                     status = self.upgrade_land(image)
                     if status:
-                        self.logger.info(f"土地已升级结果: ({x, y})")
+                        self.logger.info(f"土地已升级: ({x, y})")
+                        time.sleep(2)
                     continue
-                time.sleep(1)
                 seed_locations = self.get_seed_locations(image)
                 if not seed_locations:
                     if not is_sow_seed:
@@ -344,7 +396,7 @@ class BotVision(Base):
                     image = self.capture_window_printwindow()
                     seed_locations = self.get_seed_locations(image)
                 if seed_locations:
-                    self.logger.info(f"开始播种: ({x, y})")
+                    self.logger.info(f"开始播种: {x, y}")
                     x1 = seed_locations[0]['relative_position'][0] + 15
                     y1 = seed_locations[0]['relative_position'][1] + 15
                     self.clicker.click(self.hwnd, x1, y1)
@@ -371,20 +423,18 @@ class BotVision(Base):
             if action == 'Harvest' and locations:
                 self.common_click()
                 # 重新巡检
-                self.start_sowing()
+                # self.start_sowing()
+        time.sleep(1)
 
     def loop(self):
         land_loop = {
             'threshold': 120,
-            'last_time': time.time()
+            'last_time': time.time(),
+            'first': True
         }
+        Thread(target=self.close_blank_window).start()
         while True:
-            self.get_daily_reward()
-            t = time.time() - land_loop['last_time']
-            if t > land_loop['threshold'] or t < 1:
-                land_loop['last_time'] = time.time()
-                self.start_sowing()
-
+            # self.get_daily_reward()
             image = self.capture_window_printwindow()
             self.start_xxx_action([
                 ('Harvest', '收获'),
@@ -393,7 +443,11 @@ class BotVision(Base):
                 ('Watering', '浇水'),
                 ('Reconnect', '重新连接')
             ], image)
-            time.sleep(2)
+
+            if time.time() - land_loop['last_time'] > land_loop['threshold'] or land_loop['first']:
+                land_loop['first'] = False
+                land_loop['last_time'] = time.time()
+                self.start_sowing()
 
 
 def run():
@@ -405,12 +459,41 @@ def run():
 
     time.sleep(2)
     bot_vision.scroll_min_window()
-    time.sleep(2)
-    bot_vision.get_daily_reward()
-    time.sleep(1)
+    # bot_vision.get_daily_reward()
+    # time.sleep(1)
     bot_vision.loop()
+    # image = bot_vision.capture_window_printwindow()
+    # import numpy as np
+    # img_np = np.array(image)
+    # x1, y1, x2, y2 = 60, 170, 80, 190
+    # x1, y1, x2, y2 = 40, 290, 70, 320
+    # img_crop = img_np[y1:y2, x1:x2]
+    #
+    # # if len(img_crop.shape) == 3 and img_crop.shape[2] >= 3:
+    # #     img_crop_rgb = img_crop[:, :, :3]  # 取前3个通道
+    # #     # 如果是BGR格式，需要转换通道顺序
+    # #     import cv2
+    # #     img_crop_rgb = cv2.cvtColor(img_crop_rgb, cv2.COLOR_BGR2RGB)
+    # # else:
+    # #     img_crop_rgb = img_crop
+    #
+    # from PIL import Image
+    # img_pil = Image.fromarray(img_crop)
+    # img_pil.show()
+    # # lock_locations = bot_vision.reddot_detector.detect_template_in_image(
+    # #     # template_img='./static/redDot.png',
+    # #     template_img='./static/redDot2.jpg',
+    # #     target_img=image,
+    # #     # method='TM_CCORR_NORMED',
+    # # )
+    # lock_locations = bot_vision.reddot_detector.detect_red_dot(
+    #     image=image,
+    #     rois={'share': (x1, y1, x2, y2)}
+    # )
+    # print(lock_locations)
     # bot_vision.get_new_seed()
     # bot_vision.upgrade_land()
+    # bot_vision.get_share_reward()
 
 
 if __name__ == '__main__':

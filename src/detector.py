@@ -46,9 +46,10 @@ class RedDotDetector(object):
             hsv = cv2.cvtColor(img_crop, cv2.COLOR_RGB2HSV)
 
             # 红色在 HSV 中有两个区间（0-10 和 160-180）
-            lower_red1 = np.array([0, 70, 50])
+            # 针对小区域红点优化：降低饱和度阈值，提高亮度阈值
+            lower_red1 = np.array([0, 50, 80])
             upper_red1 = np.array([10, 255, 255])
-            lower_red2 = np.array([160, 70, 50])
+            lower_red2 = np.array([160, 50, 80])
             upper_red2 = np.array([180, 255, 255])
 
             mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
@@ -56,8 +57,8 @@ class RedDotDetector(object):
             mask = cv2.bitwise_or(mask1, mask2)
 
             # 形态学操作，去除噪点
-            kernel = np.ones((3, 3), np.uint8)
-            dilated_mask = cv2.dilate(mask, kernel, iterations=2)
+            kernel = np.ones((2, 2), np.uint8)
+            dilated_mask = cv2.dilate(mask, kernel, iterations=1)
             eroded_mask = cv2.erode(dilated_mask, kernel, iterations=1)
 
             # 查找轮廓
@@ -66,8 +67,19 @@ class RedDotDetector(object):
             red_dots = []
             for contour in contours:
                 area = cv2.contourArea(contour)
+
+                # 根据ROI大小动态调整面积过滤范围
+                roi_area = (x2 - x1) * (y2 - y1) if current_roi != "full_image" else \
+                img_crop.shape[0] * img_crop.shape[1]
+
+                # 小区域使用更宽松的面积范围
+                if roi_area < 10000:  # 小区域
+                    min_area, max_area = 10, 500
+                else:  # 大区域
+                    min_area, max_area = 50, 2000
+
                 # 过滤面积，避免太小（噪点）或太大（背景）
-                if 50 < area < 2000:
+                if min_area < area < max_area:
                     M = cv2.moments(contour)
                     if M["m00"] != 0:
                         cX = int(M["m10"] / M["m00"]) + x1
@@ -82,73 +94,6 @@ class RedDotDetector(object):
             }
 
         return all_results
-
-    @staticmethod
-    def detect_land_color(image, roi=None):
-        """
-        检测土地颜色类型
-        :param image: PIL Image 或 numpy 数组
-        :param roi: 感兴趣区域 (x1, y1, x2, y2)，如果为None则检测整张图
-        :return: 颜色信息字典
-        """
-        if isinstance(image, Image.Image):
-            img_np = np.array(image)
-        else:
-            img_np = image
-
-        # 如果指定了ROI，裁剪区域
-        if roi:
-            x1, y1, x2, y2 = roi
-            img_crop = img_np[y1:y2, x1:x2]
-        else:
-            img_crop = img_np
-
-        # 取中心区域避免边框干扰
-        h, w, _ = img_crop.shape
-        # center_crop = img_crop[int(h * 0.2):int(h * 0.8), int(w * 0.2):int(w * 0.8)]
-        center_crop = img_crop[int(h * 0.3):int(h * 0.7), int(w * 0.3):int(w * 0.7)]
-
-        # 转换到HSV色彩空间
-        hsv = cv2.cvtColor(center_crop, cv2.COLOR_RGB2HSV)
-
-        # 计算平均颜色
-        mean_hsv = np.mean(hsv, axis=(0, 1))
-        mean_rgb = np.mean(center_crop, axis=(0, 1))
-
-        h, s, v = mean_hsv
-        r, g, b = mean_rgb
-
-        del hsv
-
-        if r < 120 and g < 100 and b < 80:
-            color_type = "black_soil"
-            confidence = 0.95
-            # 红色土地：R明显高于G和B
-        elif h < 10 and s > 150 and r > 180 and r - b > 80:
-            color_type = "red_soil"
-            confidence = 0.95
-            # 金土地：R和G都较高，B较低（黄色系）
-        elif r > 180 and g > 150 and b < 100:
-            color_type = "gold_soil"
-            confidence = 0.95
-            # 普通土地：绿色系，G最高
-        elif g > r and g > b and s > 40:
-            color_type = "green_soil"
-            confidence = 0.85
-            # 白土地：RGB都很高且接近
-        elif 0 < h < 20 and 50 < s < 150:
-            color_type = "normal_soil"
-            confidence = 0.9
-        else:
-            color_type = "unknown"
-            confidence = 0.0
-
-        return {
-            'color_type': color_type,
-            'confidence': confidence,
-            'hsv': [int(h), int(s), int(v)],
-            'rgb': [int(r), int(g), int(b)]
-        }
 
     @staticmethod
     def detect_template_in_image(template_img, target_img, threshold=0.8,
@@ -224,6 +169,7 @@ class RedDotDetector(object):
                 confidence = max_val  # 相关系数越大越好
                 top_left = max_loc
 
+            # print(confidence)
             # 检查置信度
             if confidence < threshold:
                 break
