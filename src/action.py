@@ -77,6 +77,7 @@ class AutoClick:
         # 发送滚轮消息
         win32gui.PostMessage(hwnd, win32con.WM_MOUSEWHEEL, wParam, lParam)
         # logger.info(f"滚轮事件: delta={delta}, 位置=({x}, {y})")
+        time.sleep(0.1)
 
 
     @staticmethod

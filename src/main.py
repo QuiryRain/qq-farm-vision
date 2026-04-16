@@ -4,10 +4,11 @@ import time
 import random
 import pyautogui
 import win32gui
+import win32con
 from threading import Thread
 
 from base import Base
-from action import AutoClick, click_with_sendinput
+from action import AutoClick
 from config import CONFIG
 from detector import RedDotDetector
 from utils import remove_duplicate_matches, analyze_match_positions
@@ -16,15 +17,8 @@ from utils import remove_duplicate_matches, analyze_match_positions
 class BotVision(Base):
     def __init__(self, window_title: str):
         super().__init__(window_title)
-        # self.yolo: YoloVision | None = None
         self.clicker = AutoClick()
         self.reddot_detector = RedDotDetector(runner=self)
-        self.last_click_time = 0
-        self.last_click_pos = (0, 0)
-        self.last_click_count = 0
-        self.last_click_interval = 0.5
-        self.last_click_button = 'left'
-        self.last_click_success = False
 
     def common_click(self, x=None, y=None):
         """无效点击"""
@@ -38,36 +32,54 @@ class BotVision(Base):
 
     def cancel_share(self):
         """取消分享"""
-        image = self.capture_full_screen()
-        cancel_locations = self.reddot_detector.detect_template_in_image(
-            template_img=CONFIG['CancelShare'],
-            target_img=image,
-        )
-        offset = 0
-        if not cancel_locations:
-            self.logger.info("取消分享失败 类型一失败，采用类型二")
+        original_fg_window = win32gui.GetForegroundWindow()
+        original_ex_style = win32gui.GetWindowLong(self.hwnd, win32con.GWL_EXSTYLE)
+        try:
+            image = self.capture_full_screen()
             cancel_locations = self.reddot_detector.detect_template_in_image(
-                template_img=CONFIG['CancelShare2'],
+                template_img=CONFIG['CancelShare'],
                 target_img=image,
             )
-            offset = 20
-        if not cancel_locations:
-            self.logger.info("取消分享失败 类型二失败，采用类型三")
-            cancel_locations = self.reddot_detector.detect_template_in_image(
-                template_img=CONFIG['CancelShare3'],
-                target_img=image,
-            )
-            offset = 40
-        if cancel_locations:
-            time.sleep(1)
-            x, y = cancel_locations[0]['relative_position']
-            self.logger.info(f"取消分享, {x, y}")
-            # hwnd = win32gui.GetDesktopWindow()
-            # click_with_sendinput(hwnd, x, y + offset)
-            pyautogui.click(x, y + offset)
-            time.sleep(1)
-        else:
-            self.logger.info("取消分享失败 三种类型均失败")
+            offset = 0
+            if not cancel_locations:
+                self.logger.info("取消分享失败 类型一失败，采用类型二")
+                cancel_locations = self.reddot_detector.detect_template_in_image(
+                    template_img=CONFIG['CancelShare2'],
+                    target_img=image,
+                )
+                offset = 20
+            if not cancel_locations:
+                self.logger.info("取消分享失败 类型二失败，采用类型三")
+                cancel_locations = self.reddot_detector.detect_template_in_image(
+                    template_img=CONFIG['CancelShare3'],
+                    target_img=image,
+                )
+                offset = 40
+            if cancel_locations:
+                time.sleep(1)
+                x, y = cancel_locations[0]['relative_position']
+                self.logger.info(f"取消分享, {x, y}")
+                # hwnd = win32gui.GetDesktopWindow()
+                # click_with_sendinput(hwnd, x, y + offset)
+                pyautogui.click(x, y + offset)
+                time.sleep(1)
+            else:
+                self.logger.info("取消分享失败 三种类型均失败")
+        finally:
+            # 恢复窗口样式
+            try:
+                win32gui.SetWindowLong(self.hwnd, win32con.GWL_EXSTYLE, original_ex_style)
+                win32gui.SetWindowPos(self.hwnd, win32con.HWND_NOTOPMOST, 0, 0, 0, 0,
+                                      win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_NOACTIVATE)
+            except:
+                pass
+
+            # 恢复原来的前台窗口
+            try:
+                if original_fg_window and original_fg_window != self.hwnd:
+                    win32gui.SetForegroundWindow(original_fg_window)
+            except:
+                pass
         self.common_click()
 
     def get_share_reward(self):
@@ -229,10 +241,7 @@ class BotVision(Base):
     def scroll_min_window(self):
         """将画面内容最小化，统一界面"""
         # self.clicker.scroll_window(self.hwnd, 100000)
-        for i in range(30):
-            s = (i + 1) * -10
-            self.clicker.scroll_window(self.hwnd, s)
-            time.sleep(0.1)
+        [self.clicker.scroll_window(self.hwnd, (i + 1) * -10) for i in range(30)]
 
     def get_new_seed(self):
         """获取新种子"""
@@ -311,16 +320,6 @@ class BotVision(Base):
 
     def upgrade_land(self, image=None):
         """土地升级"""
-        # image = image or self.capture_window_printwindow()
-        # updateSwitch_locations = self.reddot_detector.detect_template_in_image(
-        #     template_img=CONFIG['landUpdateSwitch'],
-        #     target_img=image
-        # )
-        # if updateSwitch_locations:
-        #     time.sleep(1)
-        #     self.clicker.click(self.hwnd, *updateSwitch_locations[0]['relative_position'])
-
-        # time.sleep(0.5)
         image = self.capture_window_printwindow()
         upgrade_locations = self.reddot_detector.detect_template_in_image(
             template_img=CONFIG['landUpgrade'],
@@ -329,7 +328,6 @@ class BotVision(Base):
         if upgrade_locations:
             time.sleep(1)
             x, y = upgrade_locations[0]['relative_position']
-            # print(x, y)
             self.clicker.click(self.hwnd, x - 20, y + 20)
 
         time.sleep(0.5)
@@ -366,17 +364,11 @@ class BotVision(Base):
                 self.clicker.click(self.hwnd, x, y)
                 time.sleep(1.5)
                 image = self.capture_window_printwindow()
-                # switch_locations = self.reddot_detector.detect_template_in_image(
-                #     template_img=CONFIG['LandSwitch'],
-                #     target_img=image
-                # )
                 eradicate_loctions = self.reddot_detector.detect_template_in_image(
                     template_img=CONFIG['SeedEradicate'],
                     target_img=image
                 )
-                # if switch_locations or eradicate_loctions:
                 if eradicate_loctions:
-                    # self.logger.info(f"开始检测土地是否可升级: ({x, y})")
                     status = self.upgrade_land(image)
                     if status:
                         self.logger.info(f"土地已升级: ({x, y})")
@@ -420,10 +412,7 @@ class BotVision(Base):
                 self.logger.info(f"开始{zhCn_name}")
                 self.clicker.click(self.hwnd, *locations[0]['relative_position'])
             time.sleep(0.5)
-            if action == 'Harvest' and locations:
-                self.common_click()
-                # 重新巡检
-                # self.start_sowing()
+            # self.common_click()
         time.sleep(1)
 
     def loop(self):
@@ -462,35 +451,6 @@ def run():
     # bot_vision.get_daily_reward()
     # time.sleep(1)
     bot_vision.loop()
-    # image = bot_vision.capture_window_printwindow()
-    # import numpy as np
-    # img_np = np.array(image)
-    # x1, y1, x2, y2 = 60, 170, 80, 190
-    # x1, y1, x2, y2 = 40, 290, 70, 320
-    # img_crop = img_np[y1:y2, x1:x2]
-    #
-    # # if len(img_crop.shape) == 3 and img_crop.shape[2] >= 3:
-    # #     img_crop_rgb = img_crop[:, :, :3]  # 取前3个通道
-    # #     # 如果是BGR格式，需要转换通道顺序
-    # #     import cv2
-    # #     img_crop_rgb = cv2.cvtColor(img_crop_rgb, cv2.COLOR_BGR2RGB)
-    # # else:
-    # #     img_crop_rgb = img_crop
-    #
-    # from PIL import Image
-    # img_pil = Image.fromarray(img_crop)
-    # img_pil.show()
-    # # lock_locations = bot_vision.reddot_detector.detect_template_in_image(
-    # #     # template_img='./static/redDot.png',
-    # #     template_img='./static/redDot2.jpg',
-    # #     target_img=image,
-    # #     # method='TM_CCORR_NORMED',
-    # # )
-    # lock_locations = bot_vision.reddot_detector.detect_red_dot(
-    #     image=image,
-    #     rois={'share': (x1, y1, x2, y2)}
-    # )
-    # print(lock_locations)
     # bot_vision.get_new_seed()
     # bot_vision.upgrade_land()
     # bot_vision.get_share_reward()

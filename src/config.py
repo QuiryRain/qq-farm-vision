@@ -4,7 +4,6 @@ CONFIG = {
     'YOLO_MODEL_PATH': './model/qqfarm-9.pt',
     'RedDot': './static/redDot.png',                    # 红点
     'Watering': './static/water.png',                   # 浇水
-    'LandSwitch': './static/switch.png',                # 土地 - 切换
     'SeedEradicate': './static/eradicate.png',          # 土地 - 铲除
     'Weeding': './static/weeding.png',                  # 除草
     'Deinsectzation': './static/deinsectzation.png',    # 除虫
@@ -23,7 +22,6 @@ CONFIG = {
     'storeSeedlocked': './static/seedLock.png', # 商店 - 种子 - 未解锁 样式1
     'storeSeedlocked2': './static/seedLock2.png', # 商店 - 种子 - 未解锁 样式2
     'storeSeedUnlocked': './static/seedUnlock.png', # 商店 - 种子 - 已解锁
-    'landUpdateSwitch': './static/landUpdateSwtich.png',    # 土地升级切换
     'landUpgrade': './static/landUpgrade.png',      # 土地升级
     'landUpgradeButton': './static/landUpgradeButton.png', # 土地升级按钮
     'blankClose': './static/blank_close.png',
